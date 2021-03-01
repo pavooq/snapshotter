@@ -2,8 +2,16 @@ import re
 import json
 import random
 import pathlib
+import asyncio
+import logging
+import logging.config
 
 import slack_sdk.web.async_client
+
+slack_sdk.web.async_client.AsyncBaseClient()
+
+
+# pylint: disable=multiple-statements
 
 
 async def paginate(action: callable, *args, **kwargs) -> dict:
@@ -18,32 +26,27 @@ async def paginate(action: callable, *args, **kwargs) -> dict:
     *args, **kwargs
         Parameters for the API method provided in `action`
     """
+    kwargs.pop("cursor", None); await asyncio.sleep(1)
 
-    kwargs.pop("next_cursor", None)     # clear now internal variable
+    response = (await action(*args, **kwargs)).data
 
-    data, coroutine = list(), action(*args, **kwargs)
+    try:
+        kwargs["cursor"] = response["response_metadata"]["next_cursor"]
+    except KeyError:
+        kwargs["cursor"] = str()
 
-    response = (await coroutine).data
+    yield response
 
-    cursor = response.get(
-        "response_metadata", dict()
-    ).get("next_cursor", None)
+    while kwargs["cursor"]:
 
-    while cursor:
+        response = (await action(*args, **kwargs)).data; await asyncio.sleep(1)
 
-        data.append(response)
+        try:
+            kwargs["cursor"] = response["response_metadata"]["next_cursor"]
+        except KeyError:
+            kwargs["cursor"] = str()
 
-        coroutine = action(*args, **kwargs, next_cursor=cursor)
-
-        response = (await coroutine).data
-
-        cursor = response.get(
-            "response_metadata", dict()
-        ).get("next_cursor", None)
-
-    data.append(response)
-
-    return data
+        yield response
 
 
 def sanitize(object: dict, regex: re.Pattern = (
@@ -56,6 +59,8 @@ def sanitize(object: dict, regex: re.Pattern = (
     """
 
     result = dict()
+
+    # import json; print(json.dumps(object, indent=4))
 
     for key, value in object.items():
 
@@ -76,7 +81,7 @@ def sanitize(object: dict, regex: re.Pattern = (
         if key in ("topic", "purpose"):
             if isinstance(value, dict):
                 value.update(value=placeholder)
-            else:
+            elif isinstance(value, str):
                 value = placeholder
         if key == "previous_names":
             value = [placeholder] * len(value)
@@ -109,7 +114,7 @@ async def entrypoint(datapath: pathlib.Path):
 
     # fetch workspace members list (any member can do it)
 
-    for response in await paginate(
+    async for response in paginate(
         client.users_list, token=random.choice(list(tokens.values()))
     ):
         for member in response["members"]:
@@ -131,7 +136,7 @@ async def entrypoint(datapath: pathlib.Path):
         if teamID not in messages:
             messages[teamID] = dict()
 
-        for response in await paginate(client.users_conversations, types=(
+        async for response in paginate(client.users_conversations, types=(
             "public_channel,private_channel,im,mpim"
         ), token=token):
 
@@ -145,7 +150,7 @@ async def entrypoint(datapath: pathlib.Path):
 
                 # fetch channel history
 
-                for response in await paginate(
+                async for response in paginate(
                     client.conversations_history,
                     channel=channel["id"], token=token
                 ):
@@ -183,3 +188,8 @@ async def entrypoint(datapath: pathlib.Path):
     Data collection completed, temporary Slack application can be removed.
 
     """)
+
+
+# logging.basicConfig(level=logging.DEBUG)
+
+# logger = logging.getLogger(__name__)
