@@ -74,7 +74,10 @@ def sanitize(object: dict, regex: re.Pattern = (
             continue    # message blocks are too complex to sanitize, drop them
 
         if key in ("topic", "purpose"):
-            value.update(value=placeholder)
+            if isinstance(value, dict):
+                value.update(value=placeholder)
+            else:
+                value = placeholder
         if key == "previous_names":
             value = [placeholder] * len(value)
 
