@@ -104,7 +104,7 @@ async def entrypoint(datapath: pathlib.Path):
 
     # read tokens from the storage
     with open(datapath/"tokens.json") as authfile:
-        # disable python 3.9 false-positive: pylint: disable=superfluous-parens
+
         tokens = json.load(authfile)
 
         if not tokens:
@@ -122,6 +122,12 @@ async def entrypoint(datapath: pathlib.Path):
                 members[member["team_id"]] = dict()
 
             members[member["team_id"]][member["id"]] = sanitize(member)
+
+    for teamID, members in members.items():
+        (datapath/teamID).mkdir(exist_ok=True)
+
+        with open(datapath/teamID/"members.json", "wt") as datafile:
+            json.dump(members, datafile, indent=4)
 
     # fetch channels list (all members must do it)
 
@@ -145,6 +151,13 @@ async def entrypoint(datapath: pathlib.Path):
                 if channel["id"] not in channels[teamID]:
                     channels[teamID][channel["id"]] = sanitize(channel)
 
+                (datapath/teamID/channel["id"]).mkdir(exist_ok=True)
+
+                with open(
+                    datapath/teamID/channel["id"]/"metadata.json", "wt"
+                ) as datafile:
+                    json.dump(channel, datafile, indent=4)
+
                 if channel["id"] not in messages[teamID]:
                     messages[teamID][channel["id"]] = list()
 
@@ -159,27 +172,14 @@ async def entrypoint(datapath: pathlib.Path):
                         sanitize(message) for message in response["messages"]
                     ])
 
-    # save received data
+                with open(
+                    datapath/teamID/channel["id"]/"messages.json", "wt"
+                ) as datafile:
+                    json.dump(
+                        messages[teamID][channel["id"]], datafile, indent=4
+                    )
 
-    for teamID, members in members.items():
-        (datapath/teamID).mkdir(exist_ok=True)
-
-        with open(datapath/teamID/"members.json", "wt") as datafile:
-            json.dump(members, datafile, indent=4)
-
-        for channel in channels.get(teamID, dict()).values():
-            (datapath/teamID/channel["id"]).mkdir(exist_ok=True)
-
-            with open(
-                datapath/teamID/channel["id"]/"metadata.json", "wt"
-            ) as datafile:
-                json.dump(channel, datafile, indent=4)
-
-            with open(
-                datapath/teamID/channel["id"]/"messages.json", "wt"
-            ) as datafile:
-                json.dump(messages[teamID][channel["id"]], datafile, indent=4)
-
+                del messages[teamID][channel["id"]]
 
     print(f"""
 
