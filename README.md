@@ -28,6 +28,13 @@ We'll launch a small web server in the workspace owner's infrastructure which wi
 snapshotter auth
 ```
 
+OR via docker:
+Edit ENV vars in the dockerfile and run:
+```bash
+docker build . -t pavooq
+docker run -d -p 8080:8080 pavooq
+```
+
 Server will generate a redirect URL after it is launched: this URL must be added to the «Redirect URLs» under «OAuth & Permissions» in the application settings.
 
 #### Access grant
