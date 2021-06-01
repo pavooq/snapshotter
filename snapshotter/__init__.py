@@ -31,7 +31,12 @@ def entrypoint():
     )
 
     auth_parser.add_argument(
-        "--keys-file", dest="datapath", type=pathlib.Path, default=".",
+        "domain", type=str, default="localhost", nargs="?",
+        help="public domain name (default: localhost)"
+    )
+
+    auth_parser.add_argument(
+        "--work-dir", dest="datapath", type=pathlib.Path, default=".",
         help="path to the working directory (default: current directory)"
     )
 
@@ -40,7 +45,7 @@ def entrypoint():
     )
 
     collect_parser.add_argument(
-        "--keys-file", dest="datapath", type=pathlib.Path, default=".",
+        "--work-dir", dest="datapath", type=pathlib.Path, default=".",
         help="path to the working directory (default: current directory)"
     )
 
@@ -52,5 +57,5 @@ def entrypoint():
     if arguments.command == "collect":
         return asyncio.run(snapshotter.entrypoint(arguments.datapath))
     return webserver.entrypoint(
-        arguments.host, arguments.port, arguments.datapath
+        arguments.host, arguments.port, arguments.domain, arguments.datapath
     )

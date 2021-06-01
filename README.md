@@ -28,12 +28,7 @@ We'll launch a small web server in the workspace owner's infrastructure which wi
 snapshotter auth
 ```
 
-OR via docker:
-Edit ENV vars in the dockerfile and run:
-```bash
-docker build . -t pavooq
-docker run -d -p 8080:8080 pavooq
-```
+For info about running in Docker see below.
 
 Server will generate a redirect URL after it is launched: this URL must be added to the «Redirect URLs» under «OAuth & Permissions» in the application settings.
 
@@ -63,3 +58,26 @@ Now remove *tokens.json*, review the data and send entire working directory to u
 [bot-token]: https://api.slack.com/authentication/token-types#bot "represents single installation"
 
 [user-token]: https://api.slack.com/authentication/token-types#user "obviously represents a user"
+
+
+### Docker
+
+
+Build and run tokens collector:
+
+```bash
+docker build --target auth --build-arg DOMAIN=<your public domain> --tag snapshotter:auth .
+
+docker run --rm --interactive --tty --env SLACK_CLIENT_ID --env SLACK_CLIENT_SECRET --publish 8080:8080 --mount type=bind,source=$PWD,target=/runtime snapshotter:auth
+```
+
+Ensure that your proxy handles HTTPS for this domain by itself.
+
+
+Build and run data fetcher:
+
+```bash
+docker build --target collect --tag snapshotter:collect .
+
+docker run --rm --interactive --tty --mount type=bind,source=$PWD,target=/runtime snapshotter:collect
+```
