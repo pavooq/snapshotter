@@ -5,13 +5,13 @@ import uuid
 import signal
 import asyncio
 import pathlib
-import functools
+# import functools
 
 import yarl
 import aiohttp.web
 import aiohttp.web_runner
 
-from pyngrok import ngrok
+# from pyngrok import ngrok
 
 import slack_sdk.web.async_client
 
@@ -19,7 +19,7 @@ import slack_sdk.web.async_client
 # pylint: disable=multiple-statements
 
 
-def entrypoint(host: str, port: int, datapath: pathlib.Path):
+def entrypoint(host: str, port: int, domain: str, datapath: pathlib.Path):
     """
     runs web server for user API tokens collection
     """
@@ -37,38 +37,40 @@ def entrypoint(host: str, port: int, datapath: pathlib.Path):
 
     application["datapath"] = datapath.expanduser().absolute()
 
+    application["URL"] = f"https://{domain}"
+
     application.add_routes(routes)
 
     application.cleanup_ctx.append(storage)
 
-    application.cleanup_ctx.append(
-        functools.partial(tunnel, address=f"{host}:{port}"))
+    # application.cleanup_ctx.append(
+    #     functools.partial(tunnel, address=f"{host}:{port}"))
 
     return aiohttp.web.run_app(application, host=host, port=port, print=False)
 
 
-async def tunnel(app: aiohttp.web.Application, *, address: str):
-    """
-    opens a tunnel for ngrok to get publicly accessible domain for the OAuth
-    """
-    app["tunnel"] = ngrok.connect(address, "http")
-
-    URL = app["tunnel"].public_url
-
-    print(f"""
-
-    Base URL: {URL} <- add it as a Redirect URL at the app management page
-
-    OAuth URL: {URL}/install <- give it to your workspace' members
-
-    """)
-
-    yield
-
-    try:
-        ngrok.disconnect(app["tunnel"].public_url)
-    except Exception:   # pylint: disable=broad-except
-        return  # "Connection Refused" is often a cause
+# async def tunnel(app: aiohttp.web.Application, *, address: str):
+#     """
+#     opens a tunnel for ngrok to get publicly accessible domain for the OAuth
+#     """
+#     app["tunnel"] = ngrok.connect(address, "http")
+#
+#     URL = app["tunnel"].public_url
+#
+#     print(f"""
+#
+#     Base URL: {URL} <- add it as a Redirect URL at the app management page
+#
+#     OAuth URL: {URL}/install <- give it to your workspace' members
+#
+#     """)
+#
+#     yield
+#
+#     try:
+#         ngrok.disconnect(app["tunnel"].public_url)
+#     except Exception:   # pylint: disable=broad-except
+#         return  # "Connection Refused" is often a cause
 
 
 async def storage(app: aiohttp.web.Application):
@@ -89,6 +91,17 @@ async def counter(app: aiohttp.web.Application):
     """
     prints tokens collection progress
     """
+
+    URL = app["URL"]
+
+    print(f"""
+
+    Base URL: {URL} <- add it as a Redirect URL at the app management page
+
+    OAuth URL: {URL}/install <- give it to your workspace' members
+
+    """)
+
     print("waiting for authorizations... ", end="", flush=True)
 
     while not app["total"]:
@@ -133,7 +146,7 @@ async def install(request):
 
     return aiohttp.web.HTTPPermanentRedirect(base % {
         "state": state, "client_id": request.app["ID"], "user_scope": scopes,
-        "redirect_uri": request.app["tunnel"].public_url
+        "redirect_uri": request.app["URL"]
     }, headers={"Cache-Control": "no-store"})
 
 
@@ -173,7 +186,7 @@ async def callback(request):
 
     auth = (await client.oauth_v2_access(code=request.query["code"], **{
         "client_id": request.app["ID"], "client_secret": request.app["secret"],
-        "redirect_uri": request.app["tunnel"].public_url
+        "redirect_uri": request.app["URL"]
     })).data["authed_user"]     # always exists if user scopes was granted
 
     if not request.app["total"]:
